@@ -190,6 +190,11 @@ body {
   color: var(--text);
 }
 
+.sound-btn[aria-pressed="false"] {
+  opacity: 0.6;
+  color: var(--text-dim);
+}
+
 .dpad {
   display: grid;
   grid-template-columns: repeat(3, 52px);
@@ -270,5 +275,12 @@ body {
 
   .score-value {
     font-size: 1.15rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .dpad-btn {
+    transition: none;
   }
 }

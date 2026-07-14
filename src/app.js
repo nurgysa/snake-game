@@ -1,10 +1,14 @@
 import { createGame, step, changeDirection, startGame, togglePause, DIRECTIONS } from './game.js';
+import { feedbackForResult } from './feedback.js';
+import { createSoundPlayer } from './sound.js';
 
 const COLS = 20;
 const ROWS = 20;
 const BEST_SCORES_KEY = 'snake-best-scores';
 const LEGACY_BEST_SCORE_KEY = 'snake-best-score';
+const SOUND_ENABLED_KEY = 'snake-sound-enabled';
 const DEFAULT_DIFFICULTY = 'normal';
+const EFFECT_DURATION_MS = 360;
 
 const DIFFICULTY_PRESETS = Object.freeze({
   easy: Object.freeze({ initialSpeedMs: 180, minSpeedMs: 90, speedStepMs: 3, initialObstacleCount: 1 }),
@@ -23,6 +27,7 @@ const overlayTextEl = document.getElementById('overlay-text');
 const startBtn = document.getElementById('start-btn');
 const pauseBtn = document.getElementById('pause-btn');
 const newGameBtn = document.getElementById('new-game-btn');
+const soundBtn = document.getElementById('sound-btn');
 const dpadUpBtn = document.getElementById('dpad-up');
 const dpadDownBtn = document.getElementById('dpad-down');
 const dpadLeftBtn = document.getElementById('dpad-left');
@@ -95,6 +100,34 @@ function saveBestScores(scores) {
   }
 }
 
+function readSoundEnabled() {
+  try {
+    const raw = localStorage.getItem(SOUND_ENABLED_KEY);
+    if (raw === 'false') return false;
+    if (raw === 'true') return true;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function saveSoundEnabled(value) {
+  try {
+    localStorage.setItem(SOUND_ENABLED_KEY, String(value));
+  } catch {
+    // localStorage недоступен — просто не сохраняем предпочтение.
+  }
+}
+
+function prefersReducedMotion() {
+  try {
+    return typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 function currentPreset() {
   return DIFFICULTY_PRESETS[difficulty] ?? DIFFICULTY_PRESETS[DEFAULT_DIFFICULTY];
 }
@@ -115,19 +148,23 @@ let difficulty = DIFFICULTY_PRESETS[difficultySelect.value] ? difficultySelect.v
 let bestScores = readBestScores();
 let game = createGameForDifficulty();
 let loopHandle = null;
+let soundEnabled = readSoundEnabled();
+let effects = [];
+const reducedMotion = prefersReducedMotion();
+const soundPlayer = createSoundPlayer({ enabled: soundEnabled });
 
 function cellSize() {
   return canvas.width / COLS;
 }
 
-function drawStar(cx, cy, outerRadius, innerRadius, color) {
+function drawStar(cx, cy, outerRadius, innerRadius, color, rotation = 0) {
   const points = 5;
   const step = Math.PI / points;
   ctx.fillStyle = color;
   ctx.beginPath();
   for (let i = 0; i < points * 2; i++) {
     const radius = i % 2 === 0 ? outerRadius : innerRadius;
-    const angle = -Math.PI / 2 + i * step;
+    const angle = -Math.PI / 2 + i * step + rotation;
     const x = cx + Math.cos(angle) * radius;
     const y = cy + Math.sin(angle) * radius;
     if (i === 0) {
@@ -140,7 +177,33 @@ function drawStar(cx, cy, outerRadius, innerRadius, color) {
   ctx.fill();
 }
 
-function draw() {
+function addEffect(type, x, y, timestamp) {
+  if (reducedMotion) return;
+  effects.push({ type, x, y, start: timestamp });
+}
+
+function drawEffect(effect, timestamp) {
+  const elapsed = timestamp - effect.start;
+  if (elapsed < 0 || elapsed > EFFECT_DURATION_MS) return;
+
+  const size = cellSize();
+  const progress = elapsed / EFFECT_DURATION_MS;
+  const cx = effect.x * size + size / 2;
+  const cy = effect.y * size + size / 2;
+  const radius = size * (0.4 + progress * 0.9);
+  const alpha = 1 - progress;
+  const color = effect.type === 'bonus' ? '255, 215, 0' : '255, 82, 82';
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+  ctx.lineWidth = Math.max(1, size * 0.06 * (1 - progress * 0.5));
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw(timestamp = performance.now()) {
   const size = cellSize();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -153,12 +216,13 @@ function draw() {
   }
 
   if (game.food) {
+    const pulse = reducedMotion ? 1 : 1 + Math.sin(timestamp / 220) * 0.08;
     ctx.fillStyle = '#ff5252';
     ctx.beginPath();
     ctx.arc(
       game.food.x * size + size / 2,
       game.food.y * size + size / 2,
-      size * 0.38,
+      size * 0.38 * pulse,
       0,
       Math.PI * 2
     );
@@ -177,12 +241,15 @@ function draw() {
   });
 
   if (game.bonus) {
+    const rotation = reducedMotion ? 0 : (timestamp / 1400) % (Math.PI * 2);
+    const pulse = reducedMotion ? 1 : 1 + Math.sin(timestamp / 260) * 0.1;
     drawStar(
       game.bonus.x * size + size / 2,
       game.bonus.y * size + size / 2,
-      size * 0.42,
-      size * 0.18,
-      '#ffd700'
+      size * 0.42 * pulse,
+      size * 0.18 * pulse,
+      '#ffd700',
+      rotation
     );
   }
 
@@ -196,6 +263,8 @@ function draw() {
       size - pad * 2
     );
   });
+
+  effects.forEach((effect) => drawEffect(effect, timestamp));
 }
 
 function updateScoreboard() {
@@ -208,6 +277,11 @@ function syncPauseButton() {
   const paused = game.isPaused && game.isStarted;
   pauseBtn.textContent = paused ? 'Продолжить' : 'Пауза';
   pauseBtn.setAttribute('aria-pressed', String(paused));
+}
+
+function syncSoundButton() {
+  soundBtn.textContent = soundEnabled ? 'Звук: вкл' : 'Звук: выкл';
+  soundBtn.setAttribute('aria-pressed', String(soundEnabled));
 }
 
 function updateOverlay() {
@@ -241,6 +315,14 @@ function scheduleNextTick() {
 
 function tick() {
   const result = step(game);
+  const feedback = feedbackForResult(result);
+  if (feedback) {
+    soundPlayer.play(feedback);
+    if (!reducedMotion && (feedback === 'food' || feedback === 'bonus')) {
+      const head = game.snake[0];
+      addEffect(feedback, head.x, head.y, performance.now());
+    }
+  }
   draw();
   updateScoreboard();
   updateOverlay();
@@ -262,6 +344,9 @@ function tick() {
 
 function handleStart() {
   if (game.isGameOver || game.isWon) return;
+  if (soundEnabled) {
+    soundPlayer.unlock().catch(() => {});
+  }
   if (!game.isStarted) {
     startGame(game);
     updateOverlay();
@@ -270,6 +355,16 @@ function handleStart() {
     togglePause(game);
     updateOverlay();
     scheduleNextTick();
+  }
+}
+
+function handleSoundToggle() {
+  soundEnabled = !soundEnabled;
+  soundPlayer.setEnabled(soundEnabled);
+  saveSoundEnabled(soundEnabled);
+  syncSoundButton();
+  if (soundEnabled) {
+    soundPlayer.unlock().catch(() => {});
   }
 }
 
@@ -324,6 +419,7 @@ window.addEventListener('keydown', (event) => {
 startBtn.addEventListener('click', handleStart);
 pauseBtn.addEventListener('click', handlePause);
 newGameBtn.addEventListener('click', handleNewGame);
+soundBtn.addEventListener('click', handleSoundToggle);
 difficultySelect.addEventListener('change', handleDifficultyChange);
 dpadUpBtn.addEventListener('click', () => handleDirectionInput(DIRECTIONS.UP));
 dpadDownBtn.addEventListener('click', () => handleDirectionInput(DIRECTIONS.DOWN));
@@ -363,6 +459,16 @@ canvas.addEventListener(
   { passive: true }
 );
 
+function renderFrame(timestamp) {
+  effects = effects.filter((effect) => timestamp - effect.start < EFFECT_DURATION_MS);
+  draw(timestamp);
+  requestAnimationFrame(renderFrame);
+}
+
+syncSoundButton();
 draw();
 updateScoreboard();
 updateOverlay();
+if (!reducedMotion) {
+  requestAnimationFrame(renderFrame);
+}
