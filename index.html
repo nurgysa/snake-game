@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Змейка</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <h1 class="title">Змейка</h1>
+
+    <div class="scoreboard">
+      <div class="score-box">
+        <span class="score-label">Счёт</span>
+        <span class="score-value" id="score">0</span>
+      </div>
+      <div class="score-box">
+        <span class="score-label">Уровень</span>
+        <span class="score-value" id="level">1</span>
+      </div>
+      <div class="score-box">
+        <span class="score-label">Рекорд</span>
+        <span class="score-value" id="best-score">0</span>
+      </div>
+    </div>
+
+    <div class="difficulty-row">
+      <label class="difficulty-label" for="difficulty">Сложность</label>
+      <select class="difficulty-select" id="difficulty" name="difficulty">
+        <option value="easy">Легко</option>
+        <option value="normal" selected>Нормально</option>
+        <option value="hard">Сложно</option>
+      </select>
+    </div>
+
+    <div class="board-wrap">
+      <canvas id="board" width="400" height="400"></canvas>
+      <div class="overlay" id="overlay" hidden>
+        <p class="overlay-text" id="overlay-text" role="status" aria-live="polite">Пауза</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-primary" id="start-btn" type="button">Старт</button>
+      <button class="btn" id="pause-btn" type="button">Пауза</button>
+      <button class="btn" id="new-game-btn" type="button">Новая игра</button>
+    </div>
+
+    <div class="dpad" role="group" aria-label="Экранное управление направлением">
+      <button class="dpad-btn dpad-up" id="dpad-up" type="button" aria-label="Вверх">↑</button>
+      <button class="dpad-btn dpad-left" id="dpad-left" type="button" aria-label="Влево">←</button>
+      <button class="dpad-btn dpad-right" id="dpad-right" type="button" aria-label="Вправо">→</button>
+      <button class="dpad-btn dpad-down" id="dpad-down" type="button" aria-label="Вниз">↓</button>
+    </div>
+
+    <p class="hint">
+      Управление: стрелки или W A S D.<br>
+      На телефоне — свайпы по игровому полю.<br>
+      Фиолетовые блоки — препятствия, столкновение с ними завершает игру.<br>
+      Золотая звезда даёт +3 к счёту и не увеличивает змейку.
+    </p>
+  </main>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

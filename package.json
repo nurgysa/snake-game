@@ -1,0 +1,10 @@
+{
+  "name": "snake-game",
+  "version": "1.0.0",
+  "description": "Браузерная игра «Змейка» на чистом HTML/CSS/JS",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/game.test.js"
+  }
+}
